@@ -38,7 +38,8 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         default=-1,
     )  # type: ignore
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger("PyrogenesisActorImporter")
 
     def draw(self, context):
