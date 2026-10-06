@@ -2,6 +2,7 @@
 # This file is part of 0 A.D.
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+import glob
 import os
 
 try:
@@ -11,9 +12,11 @@ except ModuleNotFoundError:
 
 import zipfile
 
+PACKAGE = "io_import_0ad_actor"
+
 
 def get_version():
-    with open("io_scene_pyrogenesis/blender_manifest.toml", "rb") as f:
+    with open(PACKAGE + "/blender_manifest.toml", "rb") as f:
         manifest = tomllib.load(f)
         return manifest["version"]
 
@@ -21,13 +24,12 @@ def get_version():
 def build_archive():
     os.makedirs("dist", exist_ok=True)
     with zipfile.ZipFile(
-        os.path.join("dist", "io_scene_pyrogenesis-" + get_version() + ".zip"), mode="w"
+        os.path.join("dist", PACKAGE + "-" + get_version() + ".zip"), mode="w"
     ) as archive:
-        archive.write("io_scene_pyrogenesis/__init__.py")
-        archive.write("io_scene_pyrogenesis/max_collada_fixer.py")
-        archive.write("io_scene_pyrogenesis/import_pyrogenesis_actor.py")
-        archive.write("io_scene_pyrogenesis/blender_manifest.toml")
-        archive.write("LICENSE", arcname="io_scene_pyrogenesis/LICENSE")
+        for path in sorted(glob.glob(PACKAGE + "/*.py")):
+            archive.write(path)
+        archive.write(PACKAGE + "/blender_manifest.toml")
+        archive.write("LICENSE", arcname=PACKAGE + "/LICENSE")
 
 
 if __name__ == "__main__":

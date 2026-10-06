@@ -29,7 +29,7 @@ if "bpy" in locals():
 
 def menu_func_import(self, context):
     self.layout.operator(
-        ImportPyrogenesisActor.bl_idname, text="Pyrogenesis Actor (.xml)"
+        ImportPyrogenesisActor.bl_idname, text="0 A.D. Actor (.xml)"
     )
 
 

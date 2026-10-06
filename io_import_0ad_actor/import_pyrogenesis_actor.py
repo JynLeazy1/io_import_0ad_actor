@@ -13,10 +13,10 @@ import xml.etree.ElementTree as ET
 
 
 class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
-    """Load a Pyrogenesis actor file"""
+    """Load a 0 A.D. (Pyrogenesis) actor file"""
 
-    bl_label = "Import Pyrogenesis Actor"
-    bl_idname = "import_pyrogenesis_scene.xml"
+    bl_label = "Import 0 A.D. Actor"
+    bl_idname = "import_scene.zeroad_actor"
     currentPath = ""
     filter_glob: bpy.props.StringProperty(default="*.xml", options={"HIDDEN"})  # type: ignore
 

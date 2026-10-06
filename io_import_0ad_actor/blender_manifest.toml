@@ -1,0 +1,21 @@
+schema_version = "1.0.0"
+
+version = "3.0.0"
+blender_version_min = "4.2.0"
+
+id = "io_import_0ad_actor"
+name = "0 A.D. Actor Importer"
+tagline = "Import 0 A.D. actors with their meshes, props and textures"
+maintainer = "Jorge Flores"
+type = "add-on"
+website = "https://github.com/JynLeazy1/io_import_0ad_actor"
+tags = ["Import-Export"]
+license = ["SPDX:GPL-2.0-or-later"]
+copyright = [
+    "2024 seragh",
+    "2024 Stanislas Daniel Claude Dolcini",
+    "2026 Jorge Flores",
+]
+
+[permissions]
+files = "Import 0 A.D. actors, meshes and textures from disk"
