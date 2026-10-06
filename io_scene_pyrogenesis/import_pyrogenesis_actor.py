@@ -121,6 +121,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             texImage = mat.node_tree.nodes.new("ShaderNodeTexImage")
             texImage.image = bpy.data.images[fname]
             if texture.split("|")[0] == "baseTex":
+                mat.node_tree.nodes.active = texImage
                 mat.node_tree.links.new(
                     bsdf.inputs["Base Color"], texImage.outputs["Color"]
                 )
