@@ -585,35 +585,6 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                         or (self.import_depth > propDepth and self.import_depth > 0)
                     )
                 ):
-                    self.print_header("Gathering Parent Props")
-
-                    finalprops = imported_objects.copy()
-                    if len(finalprops) > 0:
-                        rootObject = None
-                        for obj in finalprops:
-                            if "prop-" in obj.name or "prop_" in obj.name:
-                                continue
-
-                            if hasattr(obj, "type") and obj.type == "ARMATURE":
-                                self.print_header("Gathering Armature Props")
-
-                                for bone in obj.data.bones:
-                                    if "prop." in bone.name:
-                                        bone.name = bone.name.replace("prop.", "prop_")
-                                    if "prop-" in bone.name:
-                                        bone.name = bone.name.replace("prop-", "prop_")
-                                    if "prop_" in bone.name:
-                                        self.logger.debug(bone.name)
-                                        finalprops.append(bone)
-
-                                continue
-                            if hasattr(obj, "type"):
-                                rootObject = bpy.data.objects[obj.name]
-                            finalprops.remove(obj)
-
-                    if rootObject is not None:
-                        self.logger.debug(rootObject.name)
-
                     for prop in child:
                         imported_props.append(prop)
 
@@ -653,6 +624,39 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                     continue
 
                 self.assign_material_to_object(obj, material_object)
+
+        finalprops = []
+        if len(imported_props) > 0:
+            self.print_header("Gathering Parent Props")
+
+            # Resolved once every group was read: a <props> group may come before the group
+            # that brings the mesh (e.g. props/units/shields/aspis_athen_b.xml).
+            finalprops = imported_objects.copy()
+            if len(finalprops) > 0:
+                rootObject = None
+                for obj in imported_objects:
+                    if "prop-" in obj.name or "prop_" in obj.name:
+                        continue
+
+                    if hasattr(obj, "type") and obj.type == "ARMATURE":
+                        self.print_header("Gathering Armature Props")
+
+                        for bone in obj.data.bones:
+                            if "prop." in bone.name:
+                                bone.name = bone.name.replace("prop.", "prop_")
+                            if "prop-" in bone.name:
+                                bone.name = bone.name.replace("prop-", "prop_")
+                            if "prop_" in bone.name:
+                                self.logger.debug(bone.name)
+                                finalprops.append(bone)
+
+                        continue
+                    if hasattr(obj, "type"):
+                        rootObject = bpy.data.objects[obj.name]
+                    finalprops.remove(obj)
+
+            if rootObject is not None:
+                self.logger.debug(rootObject.name)
 
         for prop in imported_props:
             self.print_header("Gathering Props")
