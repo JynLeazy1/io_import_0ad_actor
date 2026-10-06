@@ -230,7 +230,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         self.currentPath = (self.filepath[0 : self.filepath.find("actors")]).replace(
             "\\", "/"
         )
-        root = ET.parse(self.filepath).getroot()
+        root = self.load_actor(self.filepath)
         self.parse_actor(root)
 
         return {"FINISHED"}
@@ -661,13 +661,17 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         for prop in imported_props:
             self.print_header("Gathering Props")
 
-            if prop.attrib["actor"] == "":
+            if prop.attrib.get("actor", "") == "":
+                continue
+
+            # "loaded-<point>" is ammo, only shown in game while reloading.
+            if prop.attrib["attachpoint"].startswith("loaded-"):
                 continue
 
             try:
                 prop_path = self.currentPath + "actors/" + prop.attrib["actor"]
                 self.logger.info("Loading " + prop_path + ".")
-                proproot = ET.parse(prop_path).getroot()
+                proproot = self.load_actor(prop_path)
 
                 propRootObj = self.find_prop_root_object(
                     finalprops, prop.attrib["attachpoint"]
@@ -689,7 +693,19 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                     propDepth + 1,
                 )
             except Exception:
-                self.logger.error("Could not load" + mesh_path)
+                self.logger.exception("Could not load " + prop_path)
+
+    def load_actor(self, path):
+        """Returns the <actor> element of an actor file.
+
+        Files wrapped in <qualitylevels> hold one <actor> per quality level; like the game,
+        use the one without a quality attribute, which is the maximum quality.
+        """
+        root = ET.parse(path).getroot()
+        if root.tag != "qualitylevels":
+            return root
+        actors = root.findall("actor")
+        return next((a for a in actors if "quality" not in a.attrib), actors[-1])
 
     def find_prop_root_object(self, imported_objects, proppoint):
         for imported_object in imported_objects:
