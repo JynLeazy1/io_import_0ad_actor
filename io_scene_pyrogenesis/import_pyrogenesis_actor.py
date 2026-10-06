@@ -2,7 +2,7 @@
 # This file is part of 0 A.D.
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-from .max_collada_fixer import MaxColladaFixer
+from . import collada_import
 import bpy
 import bpy_extras
 import logging
@@ -434,13 +434,9 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                     if child.tag == "mesh":
                         mesh_path = self.currentPath + "meshes/" + child.text
                         try:
-                            fixer = MaxColladaFixer(mesh_path)
-                            fixer.execute()
-                            bpy.ops.wm.collada_import(
-                                filepath=mesh_path, import_units=True
-                            )
+                            collada_import.import_dae(mesh_path, bpy.context.collection)
                         except Exception:
-                            self.logger.error("Could not load" + mesh_path)
+                            self.logger.exception("Could not load " + mesh_path)
                     else:
                         bpy.ops.object.select_all(action="DESELECT")
                         if material_type == "default.xml" or "terrain" in material_type:
