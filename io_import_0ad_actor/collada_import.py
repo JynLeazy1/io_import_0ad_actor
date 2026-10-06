@@ -44,7 +44,11 @@ def _source(root, sid):
 
 def _up_matrix(root):
     up = root.find("c:asset/c:up_axis", NS)
-    return Y_UP_TO_Z_UP if (up is None or up.text.strip() == "Y_UP") else Matrix.Identity(4)
+    return (
+        Y_UP_TO_Z_UP
+        if (up is None or up.text.strip() == "Y_UP")
+        else Matrix.Identity(4)
+    )
 
 
 def _local_matrix(node):
@@ -80,6 +84,7 @@ def _nodes(root):
                 name = f"{name}.{len(out)}"
             out[name] = (parent, _local_matrix(n), n.get("id"), n.get("sid"), n)
             walk(n, name)
+
     walk(root.find(".//c:visual_scene", NS), None)
     return out
 
@@ -103,17 +108,20 @@ def _triangles(root, geom):
     if prim is None:
         prim = mesh.find("c:polylist", NS)
     if prim is None:
-        prim = mesh.find("c:polygons", NS)   # one <p> per polygon
+        prim = mesh.find("c:polygons", NS)  # one <p> per polygon
     inputs = prim.findall("c:input", NS)
     stride = max(int(i.get("offset")) for i in inputs) + 1
     off, srcs = {}, {}
     for i in inputs:
         sem = i.get("semantic")
         if sem in off:
-            continue   # first UV set only
+            continue  # first UV set only
         off[sem] = int(i.get("offset"))
         srcs[sem] = i.get("source")
-    vsrc = mesh.find(f"c:vertices[@id='{srcs['VERTEX'].lstrip('#')}']/c:input[@semantic='POSITION']", NS).get("source")
+    vsrc = mesh.find(
+        f"c:vertices[@id='{srcs['VERTEX'].lstrip('#')}']/c:input[@semantic='POSITION']",
+        NS,
+    ).get("source")
     P = _source(root, vsrc)
     N = _source(root, srcs["NORMAL"]) if "NORMAL" in srcs else None
     T = _source(root, srcs["TEXCOORD"]) if "TEXCOORD" in srcs else None
@@ -121,20 +129,20 @@ def _triangles(root, geom):
         tris = []
         for el in prim.findall("c:p", NS):
             p = list(map(int, el.text.split()))
-            poly = [p[k:k+stride] for k in range(0, len(p), stride)]
-            tris += [(poly[0], poly[j], poly[j+1]) for j in range(1, len(poly) - 1)]
+            poly = [p[k : k + stride] for k in range(0, len(p), stride)]
+            tris += [(poly[0], poly[j], poly[j + 1]) for j in range(1, len(poly) - 1)]
         return tris, off, P, N, T
     p = list(map(int, prim.find("c:p", NS).text.split()))
-    corners = [p[k:k+stride] for k in range(0, len(p), stride)]
+    corners = [p[k : k + stride] for k in range(0, len(p), stride)]
     tris = []
     if prim.tag == C + "polylist":
         k = 0
         for n in map(int, prim.find("c:vcount", NS).text.split()):
-            poly = corners[k:k+n]
+            poly = corners[k : k + n]
             k += n
-            tris += [(poly[0], poly[j], poly[j+1]) for j in range(1, n - 1)]
+            tris += [(poly[0], poly[j], poly[j + 1]) for j in range(1, n - 1)]
     else:
-        tris = [tuple(corners[k:k+3]) for k in range(0, len(corners), 3)]
+        tris = [tuple(corners[k : k + 3]) for k in range(0, len(corners), 3)]
     return tris, off, P, N, T
 
 
@@ -142,7 +150,7 @@ def _build_mesh(name, tris, off, positions, normals, T):
     verts, faces, uvs, nors, vmap = [], [], [], [], {}
     for tri in tris:
         if len({c[off["VERTEX"]] for c in tri}) < 3:
-            continue   # degenerate: makes normals_split_custom_set crash Blender
+            continue  # degenerate: makes normals_split_custom_set crash Blender
         f = []
         for c in tri:
             vi = c[off["VERTEX"]]
@@ -152,7 +160,7 @@ def _build_mesh(name, tris, off, positions, normals, T):
             f.append(vmap[vi])
             if T is not None:
                 ti = c[off["TEXCOORD"]]
-                uvs.append((T[2*ti], T[2*ti+1]))
+                uvs.append((T[2 * ti], T[2 * ti + 1]))
             if normals is not None:
                 nors.append(normals[c[off["NORMAL"]]])
         faces.append(f)
@@ -174,18 +182,29 @@ def import_static(path, name, collection):
     root = ET.parse(path).getroot()
     nodes, cache = _nodes(root), {}
     up = _up_matrix(root)
-    geom_node = next((n for n, v in nodes.items() if v[4].find("c:instance_geometry", NS) is not None), None)
+    geom_node = next(
+        (
+            n
+            for n, v in nodes.items()
+            if v[4].find("c:instance_geometry", NS) is not None
+        ),
+        None,
+    )
     if geom_node is None:
         raise ValueError(f"{path} has no <instance_geometry>")
     gid = nodes[geom_node][4].find("c:instance_geometry", NS).get("url").lstrip("#")
     tris, off, P, N, T = _triangles(root, root.find(f".//c:geometry[@id='{gid}']", NS))
     M = up @ _world(nodes, geom_node, {}, cache)
     R = M.to_3x3()
-    pos = [M @ Vector(P[3*i:3*i+3]) for i in range(len(P) // 3)]
-    nor = [R @ Vector(N[3*i:3*i+3]) for i in range(len(N) // 3)] if N else None
+    pos = [M @ Vector(P[3 * i : 3 * i + 3]) for i in range(len(P) // 3)]
+    nor = [R @ Vector(N[3 * i : 3 * i + 3]) for i in range(len(N) // 3)] if N else None
     ob = bpy.data.objects.new(name, _build_mesh(name, tris, off, pos, nor, T))
     collection.objects.link(ob)
-    props = {n[len("prop-"):]: up @ _world(nodes, n, {}, cache) for n in nodes if _is_prop(n)}
+    props = {
+        n[len("prop-") :]: up @ _world(nodes, n, {}, cache)
+        for n in nodes
+        if _is_prop(n)
+    }
     return ob, props
 
 
@@ -206,12 +225,14 @@ def import_skinned(body_path, name, collection, anim_path=None, frame=0):
             continue
         sampler = anim.find(f".//c:sampler[@id='{ch.get('source').lstrip('#')}']", NS)
         out = sampler.find("c:input[@semantic='OUTPUT']", NS).get("source")
-        acc = anim.find(f".//c:source[@id='{out.lstrip('#')}']/c:technique_common/c:accessor", NS)
+        acc = anim.find(
+            f".//c:source[@id='{out.lstrip('#')}']/c:technique_common/c:accessor", NS
+        )
         if acc is None or acc.get("stride") != "16":
-            continue   # full matrix channels only
+            continue  # full matrix channels only
         vals = _source(anim, out)
         k = min(frame, len(vals) // 16 - 1)
-        locals_[by_id[target]] = _mat16(vals[16*k:16*k+16])
+        locals_[by_id[target]] = _mat16(vals[16 * k : 16 * k + 16])
     # bones posed by the animation; prop points keep their position from the body
     for k, v in anodes.items():
         if k in bnodes and k not in locals_ and not k.startswith("prop"):
@@ -221,35 +242,49 @@ def import_skinned(body_path, name, collection, anim_path=None, frame=0):
     bsm = _mat16(skin.find("c:bind_shape_matrix", NS).text.split())
     joints = skin.find("c:joints", NS)
     jnames = _source(body, joints.find("c:input[@semantic='JOINT']", NS).get("source"))
-    ib = _source(body, joints.find("c:input[@semantic='INV_BIND_MATRIX']", NS).get("source"))
+    ib = _source(
+        body, joints.find("c:input[@semantic='INV_BIND_MATRIX']", NS).get("source")
+    )
     sid2name = {v[3]: k for k, v in bnodes.items() if v[3]}
-    skinmats = [_world(bnodes, sid2name.get(jn, jn), locals_, cache) @ _mat16(ib[16*j:16*j+16]) @ bsm
-                for j, jn in enumerate(jnames)]
+    skinmats = [
+        _world(bnodes, sid2name.get(jn, jn), locals_, cache)
+        @ _mat16(ib[16 * j : 16 * j + 16])
+        @ bsm
+        for j, jn in enumerate(jnames)
+    ]
     vw = skin.find("c:vertex_weights", NS)
     weights = _source(body, vw.find("c:input[@semantic='WEIGHT']", NS).get("source"))
     oj = int(vw.find("c:input[@semantic='JOINT']", NS).get("offset"))
     ow = int(vw.find("c:input[@semantic='WEIGHT']", NS).get("offset"))
     vcount = list(map(int, vw.find("c:vcount", NS).text.split()))
     v = list(map(int, vw.find("c:v", NS).text.split()))
-    tris, off, P, N, T = _triangles(body, body.find(f".//c:geometry[@id='{skin.get('source').lstrip('#')}']", NS))
+    tris, off, P, N, T = _triangles(
+        body, body.find(f".//c:geometry[@id='{skin.get('source').lstrip('#')}']", NS)
+    )
     blends, pos, k = [], [], 0
     for vi, n in enumerate(vcount):
-        M = Matrix(((0,) * 4,) * 4) if n else bsm   # unweighted vertices stay at their bind shape
+        M = (
+            Matrix(((0,) * 4,) * 4) if n else bsm
+        )  # unweighted vertices stay at their bind shape
         for _ in range(n):
-            M = M + skinmats[v[2*k+oj]] * weights[v[2*k+ow]]
+            M = M + skinmats[v[2 * k + oj]] * weights[v[2 * k + ow]]
             k += 1
         M = up @ M
         blends.append(M)
-        pos.append(M @ Vector(P[3*vi:3*vi+3]))
+        pos.append(M @ Vector(P[3 * vi : 3 * vi + 3]))
     nor = None
     if N is not None:
         nmap = {c[off["NORMAL"]]: c[off["VERTEX"]] for tri in tris for c in tri}
         nor = [None] * (len(N) // 3)
         for ni, vi in nmap.items():
-            nor[ni] = blends[vi].to_3x3() @ Vector(N[3*ni:3*ni+3])
+            nor[ni] = blends[vi].to_3x3() @ Vector(N[3 * ni : 3 * ni + 3])
     ob = bpy.data.objects.new(name, _build_mesh(name, tris, off, pos, nor, T))
     collection.objects.link(ob)
-    props = {n[len("prop-"):]: up @ _world(bnodes, n, locals_, cache) for n in bnodes if _is_prop(n)}
+    props = {
+        n[len("prop-") :]: up @ _world(bnodes, n, locals_, cache)
+        for n in bnodes
+        if _is_prop(n)
+    }
     return ob, props
 
 
