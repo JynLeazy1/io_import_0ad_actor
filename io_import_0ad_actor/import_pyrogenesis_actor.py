@@ -312,8 +312,8 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 for texture in child_textures:
                     parent_textures.append(texture)
                 return parent_textures
-            else:
-                return child_textures
+            # Only one of them has textures: keep the inherited ones too.
+            return child_textures if child_textures is not None else parent_textures
 
         return child_textures
 
@@ -333,8 +333,8 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 for prop in childProps:
                     parentProps.append(prop)
                 return parentProps
-            else:
-                return childProps
+            # Only one of them has props: keep the inherited ones too.
+            return childProps if childProps is not None else parentProps
 
         return childProps
 
