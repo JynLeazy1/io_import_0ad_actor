@@ -586,8 +586,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                         or (self.import_depth > propDepth and self.import_depth > 0)
                     )
                 ):
-                    for prop in child:
-                        imported_props.append(prop)
+                    imported_props = self.apply_variant_props(imported_props, child)
 
         mat_textures = []
         for texture in imported_textures:
@@ -695,6 +694,16 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 )
             except Exception:
                 self.logger.exception("Could not load " + prop_path)
+
+    def apply_variant_props(self, chosen, props):
+        """Returns the props chosen so far with those of the next group's variant applied.
+
+        Like the game (CObjectBase::BuildVariation), they replace the props on the same attach
+        points, and a prop without an actor only removes them.
+        """
+        points = {prop.attrib.get("attachpoint") for prop in props}
+        kept = [prop for prop in chosen if prop.attrib.get("attachpoint") not in points]
+        return kept + [prop for prop in props if prop.attrib.get("actor", "") != ""]
 
     def load_actor(self, path):
         """Returns the <actor> element of an actor file.

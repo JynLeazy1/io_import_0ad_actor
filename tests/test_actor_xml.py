@@ -195,3 +195,53 @@ def test_print_header_lines_have_the_same_length(op, caplog):
     assert len(lines) == 6
     assert {len(line) for line in lines} == {55}
     assert "Gathering Mesh" in lines[1]
+
+
+def props_element(*props):
+    return ET.fromstring(
+        "<props>"
+        + "".join(
+            f'<prop attachpoint="{point}"'
+            + ("" if actor is None else f' actor="{actor}"')
+            + "/>"
+            for point, actor in props
+        )
+        + "</props>"
+    )
+
+
+def chosen(props):
+    return [(p.attrib["attachpoint"], p.attrib["actor"]) for p in props]
+
+
+def test_variant_props_are_added_to_the_chosen_ones(op):
+    first = op.apply_variant_props([], props_element(("helmet", "h.xml")))
+    result = op.apply_variant_props(first, props_element(("shield", "s.xml")))
+    assert chosen(result) == [("helmet", "h.xml"), ("shield", "s.xml")]
+
+
+def test_variant_props_replace_those_on_the_same_attach_point(op):
+    first = op.apply_variant_props(
+        [], props_element(("root", "mask.xml"), ("crest", "c.xml"))
+    )
+    result = op.apply_variant_props(first, props_element(("root", "other.xml")))
+    assert chosen(result) == [("crest", "c.xml"), ("root", "other.xml")]
+
+
+@pytest.mark.parametrize("actor", ["", None])
+def test_empty_props_remove_those_on_the_same_attach_point(op, actor):
+    # e.g. the "No - Mask" variant of props/units/helmets/hele_thracian_b1.xml, or the
+    # "Idle" variant of props/units/kush_meroitic_scabbard.xml (<prop attachpoint="sword"/>)
+    first = op.apply_variant_props(
+        [], props_element(("root", "mask.xml"), ("crest", "c.xml"))
+    )
+    result = op.apply_variant_props(first, props_element(("root", actor)))
+    assert chosen(result) == [("crest", "c.xml")]
+
+
+def test_several_props_on_one_attach_point_are_kept(op):
+    # e.g. the two hair props on "hair" in the stable horse variants
+    result = op.apply_variant_props(
+        [], props_element(("hair", "hair_a.xml"), ("hair", "hair_b.xml"))
+    )
+    assert chosen(result) == [("hair", "hair_a.xml"), ("hair", "hair_b.xml")]
