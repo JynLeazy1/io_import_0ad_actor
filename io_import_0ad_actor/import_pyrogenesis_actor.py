@@ -545,6 +545,10 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                         ):
                             continue
 
+                        # The actor's own objects are not props: nothing to attach them to.
+                        if propDepth == 0:
+                            continue
+
                         if proppoint == "root" and rootObj is not None:
                             self.set_copy_transform_constraint(imported_object, rootObj)
                             continue
