@@ -1,0 +1,3 @@
+# Blender's mathutils only has wheels for CPython 3.13+ (Linux)
+mathutils==5.1.0
+pytest

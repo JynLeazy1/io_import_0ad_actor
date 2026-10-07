@@ -40,6 +40,16 @@ cd io_import_0ad_actor
 blender --command extension build
 ```
 
+## Tests
+
+The tests run outside Blender: `bpy` is faked and `mathutils` comes from PyPI
+(Python 3.13+).
+
+```sh
+python3 -m pip install -r tests/requirements.txt
+python3 -m pytest tests
+```
+
 ## Installation
 
 1. Build the zip (or download a release).
