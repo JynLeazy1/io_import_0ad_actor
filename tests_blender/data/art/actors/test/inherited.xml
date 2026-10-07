@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mesh, textures and props all come from variants/test/box.xml. -->
+<actor version="1">
+  <group>
+    <variant file="test/box.xml" frequency="1" name="box"/>
+  </group>
+</actor>

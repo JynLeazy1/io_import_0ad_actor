@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A triangle skinned to one bone at (0, 1, 0) (Y_UP); vertices 0 and 1 follow the bone,
+     vertex 2 has no weights. Prop point "hand" is a child of the bone. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="body-mesh" name="body">
+      <mesh>
+        <source id="body-positions">
+          <float_array id="body-positions-array" count="9">0 0 0 1 0 0 0 0 1</float_array>
+        </source>
+        <vertices id="body-vertices">
+          <input semantic="POSITION" source="#body-positions"/>
+        </vertices>
+        <triangles count="1">
+          <input semantic="VERTEX" source="#body-vertices" offset="0"/>
+          <p>0 1 2</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_controllers>
+    <controller id="body-skin">
+      <skin source="#body-mesh">
+        <bind_shape_matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</bind_shape_matrix>
+        <source id="body-joints">
+          <Name_array id="body-joints-array" count="1">bone</Name_array>
+        </source>
+        <source id="body-bind-poses">
+          <float_array id="body-bind-poses-array" count="16">1 0 0 0 0 1 0 -1 0 0 1 0 0 0 0 1</float_array>
+        </source>
+        <source id="body-weights">
+          <float_array id="body-weights-array" count="1">1</float_array>
+        </source>
+        <joints>
+          <input semantic="JOINT" source="#body-joints"/>
+          <input semantic="INV_BIND_MATRIX" source="#body-bind-poses"/>
+        </joints>
+        <vertex_weights count="3">
+          <input semantic="JOINT" source="#body-joints" offset="0"/>
+          <input semantic="WEIGHT" source="#body-weights" offset="1"/>
+          <vcount>1 1 0</vcount>
+          <v>0 0 0 0</v>
+        </vertex_weights>
+      </skin>
+    </controller>
+  </library_controllers>
+  <library_visual_scenes>
+    <visual_scene id="scene">
+      <node id="Armature" name="Armature">
+        <node id="bone" name="bone" sid="bone" type="JOINT">
+          <matrix>1 0 0 0 0 1 0 1 0 0 1 0 0 0 0 1</matrix>
+          <node id="prop-hand" name="prop-hand">
+            <translate>1 0 0</translate>
+          </node>
+        </node>
+      </node>
+      <node id="body" name="body">
+        <instance_controller url="#body-skin"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#scene"/>
+  </scene>
+</COLLADA>

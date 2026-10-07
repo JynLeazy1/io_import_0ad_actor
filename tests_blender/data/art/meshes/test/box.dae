@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A 2x2 square on the ground (Y_UP) with prop points "head" and "hand". Like Y_UP exporters
+     do, "head" is rotated -90 degrees about X, which the game (PMDConvert.cpp) undoes; "hand"
+     is not, so its props end up rotated. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <unit name="meter" meter="1"/>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="box-mesh" name="box">
+      <mesh>
+        <source id="box-positions">
+          <float_array id="box-positions-array" count="12">-1 0 -1 1 0 -1 1 0 1 -1 0 1</float_array>
+        </source>
+        <source id="box-normals">
+          <float_array id="box-normals-array" count="3">0 1 0</float_array>
+        </source>
+        <source id="box-uvs">
+          <float_array id="box-uvs-array" count="8">0 0 1 0 1 1 0 1</float_array>
+        </source>
+        <vertices id="box-vertices">
+          <input semantic="POSITION" source="#box-positions"/>
+        </vertices>
+        <polylist count="1">
+          <input semantic="VERTEX" source="#box-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#box-normals" offset="1"/>
+          <input semantic="TEXCOORD" source="#box-uvs" offset="2" set="0"/>
+          <vcount>4</vcount>
+          <p>3 0 3 2 0 2 1 0 1 0 0 0</p>
+        </polylist>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="scene">
+      <node id="box" name="box">
+        <instance_geometry url="#box-mesh"/>
+      </node>
+      <node id="prop-head" name="prop-head">
+        <translate>0 2 0</translate>
+        <rotate>1 0 0 -90</rotate>
+      </node>
+      <node id="prop-hand" name="prop-hand">
+        <translate>1 1 0</translate>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#scene"/>
+  </scene>
+</COLLADA>

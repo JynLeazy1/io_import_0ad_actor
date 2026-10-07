@@ -15,3 +15,29 @@ jobs:
         run: python -m pip install -r tests/requirements.txt
       - name: Run tests
         run: python -m pytest -v tests
+
+  blender:
+    runs-on: ubuntu-latest
+    env:
+      BLENDER: blender-5.2.2-linux-x64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender's system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libsm6 libxi6 libxkbcommon0 libxrender1 libxxf86vm1
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: ${{ env.BLENDER }}
+          key: ${{ env.BLENDER }}
+      - name: Download Blender
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          URL=https://download.blender.org/release/Blender5.2
+          curl -fsSL "$URL/$BLENDER.tar.xz" | tar -xJ
+      - name: Run tests
+        run: |
+          "$BLENDER/blender" -b --factory-startup --python-exit-code 1 \
+            --python tests_blender/run.py

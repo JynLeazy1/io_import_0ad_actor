@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A small triangle (Y_UP), without prop points. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <up_axis>Y_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="helmet-mesh" name="helmet">
+      <mesh>
+        <source id="helmet-positions">
+          <float_array id="helmet-positions-array" count="9">0 0 0 0.5 0 0 0 0.5 0</float_array>
+        </source>
+        <vertices id="helmet-vertices">
+          <input semantic="POSITION" source="#helmet-positions"/>
+        </vertices>
+        <triangles count="1">
+          <input semantic="VERTEX" source="#helmet-vertices" offset="0"/>
+          <p>0 1 2</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="scene">
+      <node id="helmet" name="helmet">
+        <instance_geometry url="#helmet-mesh"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#scene"/>
+  </scene>
+</COLLADA>

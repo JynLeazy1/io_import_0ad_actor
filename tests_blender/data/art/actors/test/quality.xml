@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The actor without a quality attribute is the maximum quality one. -->
+<qualitylevels>
+  <actor quality="100" version="1">
+    <group>
+      <variant name="low">
+        <mesh>test/helmet.dae</mesh>
+      </variant>
+    </group>
+  </actor>
+  <actor version="1">
+    <group>
+      <variant name="high">
+        <mesh>test/box.dae</mesh>
+      </variant>
+    </group>
+  </actor>
+</qualitylevels>

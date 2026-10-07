@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The second group removes the helmet put on "head" by the first one. -->
+<actor version="1">
+  <group>
+    <variant name="base">
+      <mesh>test/box.dae</mesh>
+      <props>
+        <prop actor="test/helmet.xml" attachpoint="head"/>
+        <prop actor="test/helmet.xml" attachpoint="hand"/>
+      </props>
+    </variant>
+  </group>
+  <group>
+    <variant frequency="1" name="bareheaded">
+      <props>
+        <prop attachpoint="head"/>
+      </props>
+    </variant>
+  </group>
+</actor>

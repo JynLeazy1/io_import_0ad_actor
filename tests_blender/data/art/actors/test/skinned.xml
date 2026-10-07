@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actor version="1">
+  <group>
+    <variant name="body">
+      <mesh>test/body.dae</mesh>
+      <props>
+        <prop actor="test/helmet.xml" attachpoint="hand"/>
+      </props>
+    </variant>
+  </group>
+</actor>

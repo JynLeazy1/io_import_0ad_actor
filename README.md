@@ -42,12 +42,19 @@ blender --command extension build
 
 ## Tests
 
-The tests run outside Blender: `bpy` is faked and `mathutils` comes from PyPI
-(Python 3.13+).
+The unit tests run outside Blender: `bpy` is faked and `mathutils` comes from
+PyPI (Python 3.13+).
 
 ```sh
 python3 -m pip install -r tests/requirements.txt
 python3 -m pytest tests
+```
+
+The integration tests import the small actors of `tests_blender/data/art` with
+the operator, in Blender 5.2+:
+
+```sh
+blender -b --factory-startup --python-exit-code 1 --python tests_blender/run.py
 ```
 
 ## Installation

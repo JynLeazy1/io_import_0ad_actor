@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actor version="1">
+  <group>
+    <variant name="base">
+      <mesh>test/box.dae</mesh>
+      <textures>
+        <texture file="test/base.png" name="baseTex"/>
+        <texture file="test/norm.png" name="normTex"/>
+        <texture file="test/spec.png" name="specTex"/>
+      </textures>
+      <props>
+        <prop actor="test/helmet.xml" attachpoint="head"/>
+      </props>
+    </variant>
+  </group>
+  <material>player_trans_norm_spec.xml</material>
+</actor>

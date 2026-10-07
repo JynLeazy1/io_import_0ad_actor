@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actor version="1">
+  <group>
+    <variant name="decal">
+      <decal angle="90" depth="3" offsetx="1" offsetz="2" width="2"/>
+      <textures>
+        <texture file="test/base.png" name="baseTex"/>
+      </textures>
+    </variant>
+  </group>
+  <material>basic_trans.xml</material>
+</actor>
