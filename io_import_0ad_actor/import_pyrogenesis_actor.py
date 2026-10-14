@@ -12,6 +12,11 @@ import random
 import xml.etree.ElementTree as ET
 
 
+def socket(sockets, identifier):
+    """Returns a node socket by identifier; several sockets of a Mix node share a name."""
+    return next(s for s in sockets if s.identifier == identifier)
+
+
 class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """Load a 0 A.D. (Pyrogenesis) actor file"""
 
@@ -109,8 +114,10 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             return mname
 
         mat = bpy.data.materials.new(name=mname)
-        mat.use_nodes = True
-        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        if bpy.app.version < (5, 0, 0):
+            mat.use_nodes = True  # always on, and deprecated, since Blender 5.0
+        # Nodes are looked up by type: their names are translated with the interface.
+        bsdf = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
 
         for texture in textures:
             fname = os.path.basename(texture.split("|")[1])
@@ -129,23 +136,28 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 if "player_trans" in material:
                     color_node = mat.node_tree.nodes.new("ShaderNodeRGB")
                     color_node.outputs[0].default_value = (1, 0.213477, 0.0543914, 1)
-                    multiply_node = mat.node_tree.nodes.new("ShaderNodeMixRGB")
+                    multiply_node = mat.node_tree.nodes.new("ShaderNodeMix")
+                    multiply_node.data_type = "RGBA"
                     multiply_node.blend_type = "MULTIPLY"
                     invert_node = mat.node_tree.nodes.new("ShaderNodeInvert")
                     mat.node_tree.links.new(
                         invert_node.inputs["Color"], texImage.outputs["Alpha"]
                     )
                     mat.node_tree.links.new(
-                        multiply_node.inputs[1], texImage.outputs["Color"]
+                        socket(multiply_node.inputs, "A_Color"),
+                        texImage.outputs["Color"],
                     )
                     mat.node_tree.links.new(
-                        multiply_node.inputs[2], color_node.outputs["Color"]
+                        socket(multiply_node.inputs, "B_Color"),
+                        color_node.outputs["Color"],
                     )
                     mat.node_tree.links.new(
-                        multiply_node.inputs[0], invert_node.outputs["Color"]
+                        socket(multiply_node.inputs, "Factor_Float"),
+                        invert_node.outputs["Color"],
                     )
                     mat.node_tree.links.new(
-                        bsdf.inputs["Base Color"], multiply_node.outputs["Color"]
+                        bsdf.inputs["Base Color"],
+                        socket(multiply_node.outputs, "Result_Color"),
                     )
 
                 elif "basic_trans" in material:
@@ -163,11 +175,12 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                         mix_shader_node.inputs[1], transparent_node.outputs["BSDF"]
                     )
 
-                    output_node = mat.node_tree.nodes.get("Material Output")
+                    output_node = next(
+                        n for n in mat.node_tree.nodes if n.type == "OUTPUT_MATERIAL"
+                    )
                     mat.node_tree.links.new(
                         output_node.inputs["Surface"], mix_shader_node.outputs["Shader"]
                     )
-                    mat.blend_method = "CLIP"
 
                 continue
 
@@ -206,6 +219,17 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 texImage.image.colorspace_settings.name = "Non-Color"
                 mat.node_tree.links.new(
                     bsdf.inputs["Specular IOR Level"], texImage.outputs["Color"]
+                )
+                continue
+
+            if texture.split("|")[0] == "aoTex":
+                # The game only darkens the ambient light with it, which the Principled BSDF
+                # has no input for: like the glTF importer, keep it unlinked, on its own UVs.
+                texImage.image.colorspace_settings.name = "Non-Color"
+                uv_node = mat.node_tree.nodes.new("ShaderNodeUVMap")
+                uv_node.uv_map = "AOMap"
+                mat.node_tree.links.new(
+                    texImage.inputs["Vector"], uv_node.outputs["UV"]
                 )
 
         return mat.name

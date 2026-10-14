@@ -152,11 +152,11 @@ def test_triangles_with_several_inputs_and_uv_sets():
         )
     )
     tris, off, P, N, T = ci._triangles(root, root.find(".//c:geometry", ci.NS))
-    assert off == {"VERTEX": 0, "NORMAL": 1, "TEXCOORD": 2}  # first UV set only
+    assert off == {"VERTEX": 0, "NORMAL": 1}
     assert tris == [([0, 0, 0, 9], [1, 0, 1, 9], [2, 0, 2, 9])]
     assert P == [0, 0, 0, 1, 0, 0, 0, 1, 0]
     assert N == [0, 0, 1]
-    assert T == [0, 0, 1, 0, 0, 1]
+    assert T == [(2, [0, 0, 1, 0, 0, 1]), (3, [5, 5])]  # every UV set, with its offset
 
 
 def test_polylist_is_fan_triangulated():
@@ -171,7 +171,7 @@ def test_polylist_is_fan_triangulated():
     )
     tris, off, P, N, T = ci._triangles(root, root.find(".//c:geometry", ci.NS))
     assert tris == [([0], [1], [2]), ([0], [2], [3]), ([1], [4], [2])]
-    assert N is None and T is None
+    assert N is None and T == []
 
 
 def test_polygons_are_read_one_p_per_polygon():
@@ -191,8 +191,8 @@ def test_polygons_are_read_one_p_per_polygon():
 def test_build_mesh_skips_degenerate_triangles_and_sets_uvs_and_normals(bpy_data):
     positions = [Vector((0, 0, 0)), Vector((1, 0, 0)), Vector((0, 1, 0))]
     normals = [Vector((0, 0, 2))]
-    T = [0, 0, 1, 0, 0, 1]
-    off = {"VERTEX": 0, "NORMAL": 1, "TEXCOORD": 2}
+    T = [(2, [0, 0, 1, 0, 0, 1])]
+    off = {"VERTEX": 0, "NORMAL": 1}
     tris = [
         ([0, 0, 0], [1, 0, 1], [2, 0, 2]),
         ([0, 0, 0], [0, 0, 0], [1, 0, 1]),  # degenerate
@@ -205,6 +205,16 @@ def test_build_mesh_skips_degenerate_triangles_and_sets_uvs_and_normals(bpy_data
     assert me.custom_normals == [pytest.approx((0, 0, 1))] * 3
 
 
+def test_build_mesh_names_the_second_uv_set_for_ambient_occlusion(bpy_data):
+    positions = [Vector((0, 0, 0)), Vector((1, 0, 0)), Vector((0, 1, 0))]
+    T = [(1, [0, 0, 1, 0, 0, 1]), (2, [0.5, 0.5, 1, 1]), (2, [0, 0, 1, 1])]
+    tris = [([0, 0, 1], [1, 1, 0], [2, 2, 1])]
+    me = ci._build_mesh("m", tris, {"VERTEX": 0}, positions, None, T)
+    assert [layer.name for layer in me.uv_layers] == ["UVMap", "AOMap", "UVMap.002"]
+    assert [loop.uv for loop in me.uv_layers[0].data] == [(0, 0), (1, 0), (0, 1)]
+    assert [loop.uv for loop in me.uv_layers[1].data] == [(1, 1), (0.5, 0.5), (1, 1)]
+
+
 def test_build_mesh_only_keeps_used_vertices(bpy_data):
     positions = [
         Vector((9, 9, 9)),
@@ -212,7 +222,7 @@ def test_build_mesh_only_keeps_used_vertices(bpy_data):
         Vector((1, 0, 0)),
         Vector((0, 1, 0)),
     ]
-    me = ci._build_mesh("m", [([3], [1], [2])], {"VERTEX": 0}, positions, None, None)
+    me = ci._build_mesh("m", [([3], [1], [2])], {"VERTEX": 0}, positions, None, [])
     assert me.vertices == [(0, 1, 0), (0, 0, 0), (1, 0, 0)]
     assert me.faces == [[0, 1, 2]]
     assert len(me.uv_layers) == 0

@@ -11,7 +11,9 @@ the game's converter (source/collada/PMDConvert.cpp) uses is supported:
 - Skinned meshes: the <skin> is deformed on the CPU into its rest pose (or one frame of an
   animation .dae with full 4x4 matrix channels); no armature is created.
 - Prop points: nodes named "prop-<name>" or "prop_<name>".
-Like the game, <unit> is ignored and only the first set of polygons and UVs is read.
+Like the game, <unit> is ignored and only the first set of polygons is read. Every UV set is
+read: the first one becomes "UVMap" and the second one, which the game uses for ambient occlusion,
+"AOMap".
 """
 
 import math
@@ -111,11 +113,14 @@ def _triangles(root, geom):
         prim = mesh.find("c:polygons", NS)  # one <p> per polygon
     inputs = prim.findall("c:input", NS)
     stride = max(int(i.get("offset")) for i in inputs) + 1
-    off, srcs = {}, {}
+    off, srcs, uv_sets = {}, {}, []
     for i in inputs:
         sem = i.get("semantic")
+        if sem == "TEXCOORD":
+            uv_sets.append((int(i.get("offset")), i.get("source")))
+            continue
         if sem in off:
-            continue  # first UV set only
+            continue
         off[sem] = int(i.get("offset"))
         srcs[sem] = i.get("source")
     vsrc = mesh.find(
@@ -124,7 +129,7 @@ def _triangles(root, geom):
     ).get("source")
     P = _source(root, vsrc)
     N = _source(root, srcs["NORMAL"]) if "NORMAL" in srcs else None
-    T = _source(root, srcs["TEXCOORD"]) if "TEXCOORD" in srcs else None
+    T = [(o, _source(root, src)) for o, src in uv_sets]  # [(offset, UVs)] per UV set
     if prim.tag == C + "polygons":
         tris = []
         for el in prim.findall("c:p", NS):
@@ -146,8 +151,12 @@ def _triangles(root, geom):
     return tris, off, P, N, T
 
 
+UV_LAYER_NAMES = ("UVMap", "AOMap")
+
+
 def _build_mesh(name, tris, off, positions, normals, T):
-    verts, faces, uvs, nors, vmap = [], [], [], [], {}
+    verts, faces, nors, vmap = [], [], [], {}
+    uvs = [[] for _ in T]
     for tri in tris:
         if len({c[off["VERTEX"]] for c in tri}) < 3:
             continue  # degenerate: makes normals_split_custom_set crash Blender
@@ -158,17 +167,17 @@ def _build_mesh(name, tris, off, positions, normals, T):
                 vmap[vi] = len(verts)
                 verts.append(positions[vi])
             f.append(vmap[vi])
-            if T is not None:
-                ti = c[off["TEXCOORD"]]
-                uvs.append((T[2 * ti], T[2 * ti + 1]))
+            for layer, (o, uv) in zip(uvs, T):
+                layer.append((uv[2 * c[o]], uv[2 * c[o] + 1]))
             if normals is not None:
                 nors.append(normals[c[off["NORMAL"]]])
         faces.append(f)
     me = bpy.data.meshes.new(name)
     me.from_pydata([tuple(v) for v in verts], [], faces)
-    if uvs:
-        layer = me.uv_layers.new(name="UVMap")
-        for i, t in enumerate(uvs):
+    for k, layer_uvs in enumerate(uvs):
+        name = UV_LAYER_NAMES[k] if k < len(UV_LAYER_NAMES) else f"UVMap.{k:03}"
+        layer = me.uv_layers.new(name=name)
+        for i, t in enumerate(layer_uvs):
             layer.data[i].uv = t
     if nors:
         me.normals_split_custom_set([tuple(n.normalized()) for n in nors])

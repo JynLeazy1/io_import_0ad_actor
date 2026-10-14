@@ -6,6 +6,7 @@ import hashlib
 import math
 import os
 import unittest
+import warnings
 
 import bpy
 
@@ -80,7 +81,14 @@ class TestStaticActor(ImportTestCase):
         )
         # the quad is triangulated, like the game does
         self.assertEqual(len(box.data.polygons), 2)
-        self.assertEqual([layer.name for layer in box.data.uv_layers], ["UVMap"])
+        # the second UV set is the game's ambient occlusion one
+        self.assertEqual(
+            [layer.name for layer in box.data.uv_layers], ["UVMap", "AOMap"]
+        )
+        self.assertVectorsAlmostEqual(
+            [tuple(d.uv) for d in box.data.uv_layers["AOMap"].data[:3]],
+            [(0, 0.5), (0.5, 0.5), (0.5, 0)],
+        )
         for point in ("prop_head", "prop_hand"):
             self.assertEqual(objects[point].type, "EMPTY")
             self.assertEqual(objects[point].parent, box)
@@ -115,27 +123,39 @@ class TestStaticActor(ImportTestCase):
         objects = self.import_actor("static")
         self.assertEqual(
             sorted(i.name for i in bpy.data.images),
-            ["base.png", "helmet.png", "norm.png", "spec.png"],
+            ["ao.png", "base.png", "helmet.png", "norm.png", "spec.png"],
         )
         self.assertEqual([m.name for m in objects["box"].data.materials], ["base.png"])
         material = bpy.data.materials["base.png"]
         nodes = material.node_tree.nodes
         bsdf = next(n for n in nodes if n.type == "BSDF_PRINCIPLED")
         # player_trans: the base texture is mixed with the player color through its alpha
-        self.assertEqual(
-            self.linked_node(bsdf.inputs["Base Color"]), "ShaderNodeMixRGB"
-        )
+        self.assertEqual(self.linked_node(bsdf.inputs["Base Color"]), "ShaderNodeMix")
+        mix = bsdf.inputs["Base Color"].links[0].from_node
+        self.assertEqual((mix.data_type, mix.blend_type), ("RGBA", "MULTIPLY"))
         self.assertEqual(self.linked_node(bsdf.inputs["Normal"]), "ShaderNodeNormalMap")
         self.assertEqual(
             self.linked_node(bsdf.inputs["Specular IOR Level"]), "ShaderNodeTexImage"
         )
         images = {n.image.name: n for n in nodes if n.type == "TEX_IMAGE"}
-        self.assertEqual(sorted(images), ["base.png", "norm.png", "spec.png"])
+        self.assertEqual(sorted(images), ["ao.png", "base.png", "norm.png", "spec.png"])
         self.assertEqual(nodes.active, images["base.png"])
-        for name in ("norm.png", "spec.png"):
+        # the ambient occlusion only reads the AOMap UVs; the game applies it to ambient light
+        ao = images["ao.png"]
+        self.assertEqual(ao.inputs["Vector"].links[0].from_node.uv_map, "AOMap")
+        self.assertFalse(any(link.is_valid for o in ao.outputs for link in o.links))
+        for name in ("ao.png", "norm.png", "spec.png"):
             self.assertEqual(
                 bpy.data.images[name].colorspace_settings.name, "Non-Color"
             )
+
+    def test_no_deprecated_api(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", DeprecationWarning)
+            self.import_actor("static")
+        self.assertEqual(
+            [str(w.message) for w in caught if w.category is DeprecationWarning], []
+        )
 
     def test_transparent_material(self):
         objects = self.import_actor("static")
