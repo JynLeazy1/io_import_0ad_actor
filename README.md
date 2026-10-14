@@ -57,6 +57,15 @@ the operator, in Blender 5.2+:
 blender -b --factory-startup --python-exit-code 1 --python tests_blender/run.py
 ```
 
+To check the importer against every actor of a 0 A.D. checkout (about 15
+minutes for 5800 actors), which reports exceptions, crashes, logged errors and
+any game file written to, and compares with a previous report:
+
+```sh
+python3 tests_blender/game_actors.py ~/0ad/binaries/data/mods/public/art \
+    --output report.json --baseline previous-report.json
+```
+
 ## Installation
 
 1. Build the zip (or download a release).
