@@ -74,7 +74,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
     def set_copy_transform_constraint(self, obj, parent):
         """Set constraints for props so that they fit their prop point."""
 
-        if str(type(parent)) == "<class 'bpy_types.Bone'>":
+        if isinstance(parent, bpy.types.Bone):
             armature = self.find_parent_armature(parent)
             self.logger.debug(obj.name + " -> " + armature.name + " -> " + parent.name)
             constraint = obj.constraints.new("COPY_LOCATION")
@@ -310,7 +310,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 return child
 
         # No mesh was found in this variant.
-        if "file" in root.attrib is not None:
+        if "file" in root.attrib:
             variantParent = ET.parse(
                 self.currentPath + "variants/" + root.attrib["file"]
             ).getroot()
@@ -327,7 +327,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             if child.tag == "textures":
                 child_textures = child
 
-        if "file" in root.attrib is not None:
+        if "file" in root.attrib:
             variantParent = ET.parse(
                 self.currentPath + "variants/" + root.attrib["file"]
             ).getroot()
@@ -348,7 +348,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 childProps = child
                 break
 
-        if "file" in root.attrib is not None:
+        if "file" in root.attrib:
             variantParent = ET.parse(
                 self.currentPath + "variants/" + root.attrib["file"]
             ).getroot()
@@ -372,14 +372,19 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             mesh.uv_layers[1].name = "AOMap"
 
     def parse_actor(
-        self, root, proppoint="root", parentprops=[], rootObj=None, propDepth=0
+        self, root, proppoint="root", parentprops=None, rootObj=None, propDepth=0
     ):
+        """Imports the actor of an <actor> element and, recursively, its props.
+
+        The actor is attached to its parent's prop point named proppoint, found in parentprops,
+        or to rootObj for "root". propDepth is 0 for the imported actor itself.
+        """
+        if parentprops is None:
+            parentprops = []
         meshprops = []
         imported_props = []
         imported_textures = []
         imported_objects = []
-        material_object = None
-        rootObject = rootObj
         material_type = "default.xml"
         for group in root:
             if group.tag == "material":
@@ -389,298 +394,267 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             self.logger.debug("Root object is:" + rootObj.name)
 
         for group in root:
-            if group.tag == "material":
+            if group.tag == "material" or len(group) == 0:
                 continue
 
-            if len(group) == 0:
-                continue
-
-            variant = group[0]
-            # If there is more than one group pick one randomly.
-            if len(group) > 1:
-                retries = 0
-                while (
-                    "frequency" not in variant.attrib
-                    or variant.attrib["frequency"] == "0"
-                ) and retries < len(group):
-                    variant = group[random.randint(0, len(group) - 1)]
-                    retries = retries + 1
-
+            variant = self.choose_variant(group)
             if "file" in variant.attrib:
-                present_tags = [child.tag for child in variant]
-
-                variantParent = ET.parse(
-                    self.currentPath + "variants/" + variant.attrib["file"]
-                ).getroot()
-                if "mesh" not in present_tags:
-                    mesh_child = self.get_mesh_from_variant(variantParent)
-                    if mesh_child is not None:
-                        variant.append(mesh_child)
-
-                variant_parent_textures = self.get_textures_from_variant(variantParent)
-                if "textures" not in present_tags:
-                    if variant_parent_textures is not None:
-                        variant.append(variant_parent_textures)
-                elif variant_parent_textures is not None:
-                    variant_tags = [
-                        texture.attrib["name"] for texture in variant.find("textures")
-                    ]
-                    for texture in variant_parent_textures:
-                        if (
-                            texture is not None
-                            and texture.attrib["name"] not in variant_tags
-                        ):
-                            variant.find("textures").append(texture)
-
-                # Like the game, the props of a variant are those of its files followed by its
-                # own, all of them kept even when they share an attach point.
-                variant_props = self.get_props_from_variant(variant)
-                own_props = variant.find("props")
-                if variant_props is not None and variant_props is not own_props:
-                    if own_props is not None:
-                        variant.remove(own_props)
-                    variant.append(variant_props)
+                self.resolve_variant(variant)
 
             for child in variant:
                 if child.tag == "mesh" or child.tag == "decal":
-                    self.print_header("Gathering Mesh")
-
-                    # Get the objects prior to importing
-                    prior_objects = [Object for Object in bpy.context.scene.objects]
-                    prior_materials = [material for material in bpy.data.materials]
-                    # Deselect all the previously selected objects.
-                    for obj in prior_objects:
-                        obj.select_set(False)
-                    # Import the new objects
-                    if child.tag == "mesh":
-                        mesh_path = self.currentPath + "meshes/" + child.text
-                        try:
-                            collada_import.import_dae(mesh_path, bpy.context.collection)
-                        except Exception:
-                            self.logger.exception("Could not load " + mesh_path)
-                    else:
-                        bpy.ops.object.select_all(action="DESELECT")
-                        if material_type == "default.xml" or "terrain" in material_type:
-                            material_type = "basic_trans.xml"
-
-                        decal = self.create_custom_mesh(
-                            "Decal",
-                            float(child.attrib["offsetx"]),
-                            float(child.attrib["offsetz"]),
-                            0,
-                            float(child.attrib["width"]),
-                            float(child.attrib["depth"]),
-                        )
-                        decal.select_set(True)
-                        bpy.context.view_layer.objects.active = decal
-                        bpy.ops.object.mode_set(mode="EDIT")
-                        bpy.ops.uv.reset()
-                        bpy.ops.object.mode_set(mode="OBJECT")
-                        decal.rotation_euler = (
-                            0,
-                            0,
-                            math.radians(float(child.attrib["angle"])),
-                        )
-
-                    new_current_objects = [
-                        object for object in bpy.context.scene.objects
-                    ]
-                    # Select those objects
-                    for obj in set(new_current_objects) - set(prior_objects):
-                        obj.select_set(True)
-
-                    backup = bpy.context.selected_objects.copy()
-                    for b in backup:
-                        if b.type == "MESH":
-                            self.mesh_uv_layers_names_update(b.data)
-
-                    # Get those objects
-                    imported_objects = bpy.context.selected_objects.copy()
-
-                    for imported_object in imported_objects:
-                        if (
-                            imported_object is not None
-                            and "prop." in imported_object.name
-                        ):
-                            imported_object.name = imported_object.name.replace(
-                                "prop.", "prop_"
-                            )
-                            if (
-                                imported_object.data is not None
-                                and "prop." in imported_object.data.name
-                            ):
-                                imported_object.data.name = (
-                                    imported_object.data.name.replace("prop.", "prop_")
-                                )
-                        # props are parented so they should follow their root object.
-                        if "prop-" in imported_object.name:
-                            imported_object.name = imported_object.name.replace(
-                                "prop-", "prop_"
-                            )
-                            if (
-                                imported_object.data is not None
-                                and "prop-" in imported_object.data.name
-                            ):
-                                imported_object.data.name = (
-                                    imported_object.data.name.replace("prop-", "prop_")
-                                )
-                        if "prop_" in imported_object.name:
-                            meshprops.append(imported_object)
-                            imported_object.select_set(False)
-
-                    bpy.ops.object.transform_apply(
-                        location=True, rotation=True, scale=True
+                    if child.tag == "decal" and (
+                        material_type == "default.xml" or "terrain" in material_type
+                    ):
+                        material_type = "basic_trans.xml"
+                    imported_objects = self.import_mesh(child, meshprops)
+                    self.attach_to_prop_point(
+                        imported_objects, proppoint, parentprops, rootObj, propDepth
                     )
-
-                    for obj in backup:
-                        obj.select_set(True)
-                    bpy.ops.object.transform_apply(
-                        location=False, rotation=False, scale=True
-                    )
-
-                    # Clear old materials
-                    for ob in bpy.context.selected_editable_objects:
-                        ob.active_material_index = 0
-                        for i in range(len(ob.material_slots)):
-                            bpy.ops.object.material_slot_remove()
-
-                    new_current_materials = [
-                        material for material in bpy.data.materials
-                    ]
-                    for material in set(new_current_materials) - set(prior_materials):
-                        bpy.data.materials.remove(material)
-
-                    self.print_header("Setting Constraints")
-
-                    for imported_object in imported_objects:
-                        # props are parented so they should follow their root object.
-                        if (
-                            (
-                                "prop-" in imported_object.name
-                                or "prop_" in imported_object.name
-                            )
-                            and hasattr(imported_object, "type")
-                            and imported_object.type == "EMPTY"
-                        ):
-                            continue
-
-                        # The actor's own objects are not props: nothing to attach them to.
-                        if propDepth == 0:
-                            continue
-
-                        if proppoint == "root" and rootObj is not None:
-                            self.set_copy_transform_constraint(imported_object, rootObj)
-                            continue
-
-                        found = False
-                        for prop in parentprops:
-                            if proppoint in prop.name:
-                                found = True
-                                self.set_copy_transform_constraint(
-                                    imported_object, prop
-                                )
-                                break
-
-                        if found:
-                            continue
-
-                        self.logger.error(
-                            ""
-                            + imported_object.name
-                            + " has no parent prop point named prop_"
-                            + proppoint
-                            + ". Root object name: "
-                            + (rootObj.name if rootObj is not None else "Undefined")
-                            + ""
-                        )
-
-                if child.tag == "textures" and self.import_textures:
+                elif child.tag == "textures" and self.import_textures:
                     self.print_header("Gathering Textures")
-
-                    if len(child) > 0:
-                        for texture in child:
-                            imported_textures.append(texture)
-
-                if (
-                    child.tag == "props"
-                    and self.import_props
-                    and (
-                        self.import_depth == -1
-                        or (self.import_depth > propDepth and self.import_depth > 0)
-                    )
-                ):
+                    imported_textures.extend(child)
+                elif child.tag == "props" and self.wants_props(propDepth):
                     imported_props = self.apply_variant_props(imported_props, child)
 
+        self.apply_textures(imported_textures, material_type, imported_objects)
+        finalprops, rootObject = self.gather_prop_points(
+            imported_props, imported_objects, rootObj
+        )
+        self.import_actor_props(
+            imported_props, finalprops, meshprops, rootObject, propDepth
+        )
+
+    def choose_variant(self, group):
+        """Returns the group's first variant or, if it has no frequency, a random one."""
+        variant = group[0]
+        if len(group) > 1:
+            retries = 0
+            while (
+                "frequency" not in variant.attrib or variant.attrib["frequency"] == "0"
+            ) and retries < len(group):
+                variant = group[random.randint(0, len(group) - 1)]
+                retries = retries + 1
+        return variant
+
+    def resolve_variant(self, variant):
+        """Adds to a variant the mesh, textures and props it inherits through file=."""
+        present_tags = [child.tag for child in variant]
+
+        variantParent = ET.parse(
+            self.currentPath + "variants/" + variant.attrib["file"]
+        ).getroot()
+        if "mesh" not in present_tags:
+            mesh_child = self.get_mesh_from_variant(variantParent)
+            if mesh_child is not None:
+                variant.append(mesh_child)
+
+        variant_parent_textures = self.get_textures_from_variant(variantParent)
+        if "textures" not in present_tags:
+            if variant_parent_textures is not None:
+                variant.append(variant_parent_textures)
+        elif variant_parent_textures is not None:
+            variant_tags = [
+                texture.attrib["name"] for texture in variant.find("textures")
+            ]
+            for texture in variant_parent_textures:
+                if texture is not None and texture.attrib["name"] not in variant_tags:
+                    variant.find("textures").append(texture)
+
+        # Like the game, the props of a variant are those of its files followed by its own,
+        # all of them kept even when they share an attach point.
+        variant_props = self.get_props_from_variant(variant)
+        own_props = variant.find("props")
+        if variant_props is not None and variant_props is not own_props:
+            if own_props is not None:
+                variant.remove(own_props)
+            variant.append(variant_props)
+
+    def wants_props(self, propDepth):
+        """Whether the props of an actor at this depth are imported."""
+        return self.import_props and (
+            self.import_depth == -1
+            or (self.import_depth > propDepth and self.import_depth > 0)
+        )
+
+    def import_mesh(self, child, meshprops):
+        """Imports a <mesh> or <decal> and returns the new objects.
+
+        Its prop points are renamed "prop_<name>" and added to meshprops.
+        """
+        self.print_header("Gathering Mesh")
+
+        # Get the objects prior to importing
+        prior_objects = [Object for Object in bpy.context.scene.objects]
+        prior_materials = [material for material in bpy.data.materials]
+        # Deselect all the previously selected objects.
+        for obj in prior_objects:
+            obj.select_set(False)
+        # Import the new objects
+        if child.tag == "mesh":
+            mesh_path = self.currentPath + "meshes/" + child.text
+            try:
+                collada_import.import_dae(mesh_path, bpy.context.collection)
+            except Exception:
+                self.logger.exception("Could not load " + mesh_path)
+        else:
+            bpy.ops.object.select_all(action="DESELECT")
+            decal = self.create_custom_mesh(
+                "Decal",
+                float(child.attrib["offsetx"]),
+                float(child.attrib["offsetz"]),
+                0,
+                float(child.attrib["width"]),
+                float(child.attrib["depth"]),
+            )
+            decal.select_set(True)
+            bpy.context.view_layer.objects.active = decal
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.uv.reset()
+            bpy.ops.object.mode_set(mode="OBJECT")
+            decal.rotation_euler = (0, 0, math.radians(float(child.attrib["angle"])))
+
+        new_current_objects = [object for object in bpy.context.scene.objects]
+        # Select those objects
+        for obj in set(new_current_objects) - set(prior_objects):
+            obj.select_set(True)
+
+        backup = bpy.context.selected_objects.copy()
+        for b in backup:
+            if b.type == "MESH":
+                self.mesh_uv_layers_names_update(b.data)
+
+        # Get those objects
+        imported_objects = bpy.context.selected_objects.copy()
+
+        for imported_object in imported_objects:
+            for prefix in ("prop.", "prop-"):
+                if prefix in imported_object.name:
+                    imported_object.name = imported_object.name.replace(prefix, "prop_")
+                    if (
+                        imported_object.data is not None
+                        and prefix in imported_object.data.name
+                    ):
+                        imported_object.data.name = imported_object.data.name.replace(
+                            prefix, "prop_"
+                        )
+            # props are parented so they should follow their root object.
+            if "prop_" in imported_object.name:
+                meshprops.append(imported_object)
+                imported_object.select_set(False)
+
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+        for obj in backup:
+            obj.select_set(True)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
+        # Clear old materials
+        for ob in bpy.context.selected_editable_objects:
+            ob.active_material_index = 0
+            for i in range(len(ob.material_slots)):
+                bpy.ops.object.material_slot_remove()
+
+        new_current_materials = [material for material in bpy.data.materials]
+        for material in set(new_current_materials) - set(prior_materials):
+            bpy.data.materials.remove(material)
+
+        return imported_objects
+
+    def attach_to_prop_point(
+        self, imported_objects, proppoint, parentprops, rootObj, propDepth
+    ):
+        """Makes the objects of a prop follow the parent's prop point it is attached to."""
+        self.print_header("Setting Constraints")
+
+        for imported_object in imported_objects:
+            # props are parented so they should follow their root object.
+            if (
+                "prop-" in imported_object.name or "prop_" in imported_object.name
+            ) and imported_object.type == "EMPTY":
+                continue
+
+            # The actor's own objects are not props: nothing to attach them to.
+            if propDepth == 0:
+                continue
+
+            if proppoint == "root" and rootObj is not None:
+                self.set_copy_transform_constraint(imported_object, rootObj)
+                continue
+
+            prop = next((p for p in parentprops if proppoint in p.name), None)
+            if prop is not None:
+                self.set_copy_transform_constraint(imported_object, prop)
+                continue
+
+            self.logger.error(
+                imported_object.name
+                + " has no parent prop point named prop_"
+                + proppoint
+                + ". Root object name: "
+                + (rootObj.name if rootObj is not None else "Undefined")
+            )
+
+    def apply_textures(self, imported_textures, material_type, imported_objects):
+        """Loads the <texture> elements and gives their material to the imported meshes."""
         mat_textures = []
         for texture in imported_textures:
-            self.logger.info(
-                "Loading "
-                + texture.attrib["name"]
-                + ": "
-                + self.currentPath
-                + "textures/skins/"
-                + texture.attrib["file"]
-            )
-            bpy.data.images.load(
-                self.currentPath + "textures/skins/" + texture.attrib["file"],
-                check_existing=True,
-            )
-            mat_textures.append(
-                texture.attrib["name"]
-                + "|"
-                + self.currentPath
-                + "textures/skins/"
-                + texture.attrib["file"]
-            )
+            path = self.currentPath + "textures/skins/" + texture.attrib["file"]
+            self.logger.info("Loading " + texture.attrib["name"] + ": " + path)
+            bpy.data.images.load(path, check_existing=True)
+            mat_textures.append(texture.attrib["name"] + "|" + path)
 
-        if len(mat_textures):
-            material_object = self.create_new_material(mat_textures, material_type)
+        if not mat_textures:
+            return
 
-            for obj in imported_objects:
-                if ("prop-" in obj.name or "prop_" in obj.name) and not hasattr(
-                    obj, "type"
-                ):
-                    continue
-                if hasattr(obj, "type") and obj.type == "EMPTY":
-                    continue
-                if hasattr(obj, "type") and obj.type == "ARMATURE":
-                    continue
+        material_object = self.create_new_material(mat_textures, material_type)
+        for obj in imported_objects:
+            if obj.type in ("EMPTY", "ARMATURE"):
+                continue
+            self.assign_material_to_object(obj, material_object)
 
-                self.assign_material_to_object(obj, material_object)
-
+    def gather_prop_points(self, imported_props, imported_objects, rootObject):
+        """Returns the prop points (empties or bones) the props can attach to, and the root
+        object of the actor (its mesh) if it has one."""
         finalprops = []
-        if len(imported_props) > 0:
-            self.print_header("Gathering Parent Props")
+        if len(imported_props) == 0:
+            return finalprops, rootObject
 
-            # Resolved once every group was read: a <props> group may come before the group
-            # that brings the mesh (e.g. props/units/shields/aspis_athen_b.xml).
-            finalprops = imported_objects.copy()
-            if len(finalprops) > 0:
-                rootObject = None
-                for obj in imported_objects:
-                    if "prop-" in obj.name or "prop_" in obj.name:
-                        continue
+        self.print_header("Gathering Parent Props")
 
-                    if hasattr(obj, "type") and obj.type == "ARMATURE":
-                        self.print_header("Gathering Armature Props")
+        # Resolved once every group was read: a <props> group may come before the group
+        # that brings the mesh (e.g. props/units/shields/aspis_athen_b.xml).
+        finalprops = imported_objects.copy()
+        if len(finalprops) > 0:
+            rootObject = None
+            for obj in imported_objects:
+                if "prop-" in obj.name or "prop_" in obj.name:
+                    continue
 
-                        for bone in obj.data.bones:
-                            if "prop." in bone.name:
-                                bone.name = bone.name.replace("prop.", "prop_")
-                            if "prop-" in bone.name:
-                                bone.name = bone.name.replace("prop-", "prop_")
-                            if "prop_" in bone.name:
-                                self.logger.debug(bone.name)
-                                finalprops.append(bone)
+                if obj.type == "ARMATURE":
+                    self.print_header("Gathering Armature Props")
 
-                        continue
-                    if hasattr(obj, "type"):
-                        rootObject = bpy.data.objects[obj.name]
-                    finalprops.remove(obj)
+                    for bone in obj.data.bones:
+                        if "prop." in bone.name:
+                            bone.name = bone.name.replace("prop.", "prop_")
+                        if "prop-" in bone.name:
+                            bone.name = bone.name.replace("prop-", "prop_")
+                        if "prop_" in bone.name:
+                            self.logger.debug(bone.name)
+                            finalprops.append(bone)
 
-            if rootObject is not None:
-                self.logger.debug(rootObject.name)
+                    continue
+                rootObject = bpy.data.objects[obj.name]
+                finalprops.remove(obj)
 
+        if rootObject is not None:
+            self.logger.debug(rootObject.name)
+        return finalprops, rootObject
+
+    def import_actor_props(
+        self, imported_props, finalprops, meshprops, rootObject, propDepth
+    ):
+        """Imports the actors of the <prop> elements, attached to their prop points."""
         for prop in imported_props:
             self.print_header("Gathering Props")
 
@@ -691,8 +665,8 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
             if prop.attrib["attachpoint"].startswith("loaded-"):
                 continue
 
+            prop_path = self.currentPath + "actors/" + prop.attrib["actor"]
             try:
-                prop_path = self.currentPath + "actors/" + prop.attrib["actor"]
                 self.logger.info("Loading " + prop_path + ".")
                 proproot = self.load_actor(prop_path)
 
@@ -709,9 +683,7 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                 self.parse_actor(
                     proproot,
                     prop.attrib["attachpoint"],
-                    meshprops
-                    if finalprops is None or len(finalprops) <= 0
-                    else finalprops,
+                    finalprops if finalprops else meshprops,
                     rootObject,
                     propDepth + 1,
                 )
