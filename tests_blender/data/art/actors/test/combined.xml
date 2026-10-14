@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Like the game, the variant keeps the helmet on "head" from variants/test/box.xml as well as
+     its own props, even the one on the same attach point. -->
+<actor version="1">
+  <group>
+    <variant file="test/box.xml" frequency="1" name="box">
+      <props>
+        <prop actor="test/helmet.xml" attachpoint="head"/>
+        <prop actor="test/helmet.xml" attachpoint="hand"/>
+      </props>
+    </variant>
+  </group>
+</actor>

@@ -175,6 +175,14 @@ class TestVariants(ImportTestCase):
         self.assertEqual([m.name for m in objects["box"].data.materials], ["base.png"])
         self.assertAttachedTo(objects["helmet"], objects["prop_head"])
 
+    def test_own_and_inherited_props_are_combined(self):
+        objects = self.import_actor("combined")
+        helmets = [o for o in objects.values() if o.name.startswith("helmet")]
+        self.assertEqual(
+            sorted(h.parent.name for h in helmets),
+            ["prop_hand", "prop_head", "prop_head"],
+        )
+
     def test_later_group_removes_a_prop(self):
         objects = self.import_actor("override")
         helmets = [o for o in objects.values() if o.name.startswith("helmet")]

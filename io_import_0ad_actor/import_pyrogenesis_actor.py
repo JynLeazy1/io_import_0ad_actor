@@ -408,19 +408,14 @@ class ImportPyrogenesisActor(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
                         ):
                             variant.find("textures").append(texture)
 
-                variant_parent_props = self.get_props_from_variant(variant)
-                if "props" not in present_tags and variant_parent_props is not None:
-                    variant.append(variant_parent_props)
-                elif variant_parent_props is not None:
-                    variant_tags = [
-                        prop.attrib["attachpoint"] for prop in variant.find("props")
-                    ]
-                    for prop in variant_parent_props:
-                        if (
-                            prop is not None
-                            and prop.attrib["attachpoint"] not in variant_tags
-                        ):
-                            variant.find("props").append(prop)
+                # Like the game, the props of a variant are those of its files followed by its
+                # own, all of them kept even when they share an attach point.
+                variant_props = self.get_props_from_variant(variant)
+                own_props = variant.find("props")
+                if variant_props is not None and variant_props is not own_props:
+                    if own_props is not None:
+                        variant.remove(own_props)
+                    variant.append(variant_props)
 
             for child in variant:
                 if child.tag == "mesh" or child.tag == "decal":
